@@ -69,22 +69,6 @@
     background:var(--danger-soft); color:#b91c1c; border:1px solid #fecaca;
     border-radius:10px; padding:10px 12px; font-size:13.5px; margin-bottom:14px;
   }
-  .demo-box{margin-top:20px; border-top:1px dashed var(--border); padding-top:16px;}
-  .demo-box h3{font-size:12.5px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:10px;}
-  .demo-row{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:8px 10px; border-radius:8px; font-size:13.5px; cursor:pointer;
-  }
-  .demo-row:hover{background:#f1f5f9;}
-  .demo-row code{background:#f1f5f9; padding:3px 8px; border-radius:6px; font-size:12.5px; color:#334155;}
-  .demo-row:hover code{background:#e2e8f0;}
-  .demo-hint{font-size:12px; color:var(--muted); margin-top:8px; text-align:center;}
-  .quick-login{margin-top:18px;}
-  .quick-login h3{font-size:12.5px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:10px;}
-  .quick-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
-  .quick-btn{border:1.5px solid var(--border); background:#fff; border-radius:10px; padding:10px 8px; font-size:13px; font-weight:600; color:var(--navy); cursor:pointer; font-family:inherit;}
-  .quick-btn:hover{border-color:var(--emerald); background:#ecfdf5;}
-  .quick-btn:active{transform:scale(.97);}
 
   /* ---------- App shell ---------- */
   .app{display:flex; min-height:100vh;}
@@ -315,7 +299,7 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v1 · Pallathur Unit edition</p>
+    <p class="version-tag">v2 · Pallathur Unit edition</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
@@ -333,15 +317,6 @@
       </div>
       <button type="submit" class="btn btn-primary">Log In</button>
     </form>
-    <div class="quick-login">
-      <h3>One-tap demo login</h3>
-      <div class="quick-grid" id="quickLogin"></div>
-    </div>
-    <div class="demo-box">
-      <h3>Demo credentials — tap a row to log in</h3>
-      <div id="demoCreds"></div>
-      <p class="demo-hint">For demonstration purposes only.</p>
-    </div>
   </div>
 </div>
 
@@ -366,7 +341,7 @@
           <div class="role" id="chipRole">Full access</div>
         </div>
       </div>
-      <button class="reset-link" id="resetDemo">↺ Reset demo data</button>
+      <button class="reset-link" id="resetData">↺ Clear all data</button>
     </div>
   </aside>
 
@@ -489,7 +464,7 @@
           </div>
           <p class="note">
             Signed in as <strong id="rolesWho">—</strong>. Actions outside your role are hidden
-            automatically. For this demo, each role has a simple password shown on the login screen.
+            automatically.
           </p>
         </div>
       </section>
@@ -591,19 +566,11 @@ const HAS_STORAGE = (() => {
 })();
 
 function seedData() {
-  return {
-    balance: 85000,
-    transactions: [
-      { id: 8, type: 'income',  category: 'Membership Fees', amount: 15200, date: '2026-10-05', desc: 'October unit subscriptions collection',   by: 'Treasurer', status: 'approved' },
-      { id: 7, type: 'expense', category: 'Refreshments',    amount: 2400,  date: '2026-10-04', desc: 'Weekly unit meeting — refreshments',      by: 'General Secretary', status: 'approved' },
-      { id: 6, type: 'income',  category: 'Donations',        amount: 10000, date: '2026-10-01', desc: 'Jariya fund — well-wisher contribution',   by: 'President', status: 'approved' },
-      { id: 5, type: 'expense', category: 'Event Costs',      amount: 6500,  date: '2026-09-27', desc: 'Family meet — hall & arrangements',        by: 'President', status: 'approved' },
-      { id: 4, type: 'income',  category: 'Event Collection', amount: 8200,  date: '2026-09-25', desc: 'Family meet — entry contributions',        by: 'Treasurer', status: 'approved' },
-      { id: 3, type: 'expense', category: 'Printing',         amount: 1800,  date: '2026-09-20', desc: 'Notice & banner printing',                 by: 'General Secretary', status: 'approved' },
-      { id: 2, type: 'expense', category: 'Travel',           amount: 1200,  date: '2026-09-15', desc: 'District meeting — travel allowance',      by: 'Working Secretary', status: 'approved' },
-      { id: 1, type: 'income',  category: 'Other',            amount: 5000,  date: '2026-09-08', desc: 'Office fund — member contribution',        by: 'President', status: 'approved' }
-    ]
-  };
+  return { balance: 0, transactions: [] };
+}
+
+function emptyData() {
+  return { balance: 0, transactions: [] };
 }
 
 function loadData() {
@@ -655,20 +622,6 @@ const roleSelect = document.getElementById('roleSelect');
 const passwordInput = document.getElementById('passwordInput');
 const loginError = document.getElementById('loginError');
 
-(function renderDemoCreds() {
-  const box = document.getElementById('demoCreds');
-  box.innerHTML = Object.keys(USERS).map(k => {
-    const u = USERS[k];
-    return '<div class="demo-row" data-role="' + k + '" data-pass="' + u.password + '">' +
-           '<span>' + esc(u.label) + '</span><code>' + esc(u.username) + ' / ' + esc(u.password) + '</code></div>';
-  }).join('');
-  box.querySelectorAll('.demo-row').forEach(r => {
-    r.addEventListener('click', () => {
-      loginAs(r.dataset.role);
-    });
-  });
-})();
-
 function loginAs(key) {
   const u = USERS[key];
   if (!u) return;
@@ -679,16 +632,6 @@ function loginAs(key) {
   enterApp();
 }
 
-(function renderQuickLogin() {
-  const box = document.getElementById('quickLogin');
-  box.innerHTML = Object.keys(USERS).map(k =>
-    '<button type="button" class="quick-btn" data-role="' + k + '">' + esc(USERS[k].label) + '</button>'
-  ).join('');
-  box.querySelectorAll('.quick-btn').forEach(b => {
-    b.addEventListener('click', () => loginAs(b.dataset.role));
-  });
-})();
-
 loginForm.addEventListener('submit', e => {
   e.preventDefault();
   const key = roleSelect.value;
@@ -696,7 +639,7 @@ loginForm.addEventListener('submit', e => {
   if (u && passwordInput.value === u.password) {
     loginAs(key);
   } else {
-    loginError.textContent = 'Incorrect password for ' + USERS[key].label + '. Tap a demo row above to fill it, or use one-tap login below.';
+    loginError.textContent = 'Incorrect password for ' + USERS[key].label + '.';
     loginError.classList.remove('hidden');
   }
 });
@@ -731,9 +674,9 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
   appView.classList.add('hidden');
   loginView.classList.remove('hidden');
 });
-document.getElementById('resetDemo').addEventListener('click', () => {
-  if (confirm('Reset all data back to the demo seed? Your entries will be replaced.')) {
-    DB = seedData();
+document.getElementById('resetData').addEventListener('click', () => {
+  if (confirm('Clear ALL data? This removes every transaction and resets the balance to zero.')) {
+    DB = emptyData();
     saveData(DB);
     renderAll();
   }
