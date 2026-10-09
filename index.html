@@ -121,6 +121,8 @@
     background:var(--emerald-soft); color:var(--emerald-dark);
     font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:999px;
   }
+  .user-name{font-size:13.5px; font-weight:700; color:var(--navy); margin-right:8px;}
+  .th-name{font-weight:600; color:var(--muted); font-size:11px;}
   .logout-btn{
     margin-left:10px; background:none; border:1.5px solid var(--border); color:var(--muted);
     border-radius:8px; padding:6px 12px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;
@@ -298,16 +300,16 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v6 · Pallathur Unit edition</p>
+    <p class="version-tag">v7 · Pallathur Unit edition</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
         <label for="roleSelect">Role</label>
         <select id="roleSelect">
-          <option value="president">President</option>
-          <option value="gensec">General Secretary</option>
-          <option value="treasurer">Treasurer</option>
-          <option value="worksec">Working Secretary</option>
+          <option value="president">President — Abdul Kareem P M</option>
+          <option value="gensec">General Secretary — Shammas K</option>
+          <option value="treasurer">Treasurer — Rafeeq O</option>
+          <option value="worksec">Working Secretary — Muhammad Ishak M</option>
         </select>
       </div>
       <div class="field">
@@ -352,6 +354,7 @@
         <div class="date" id="todayLine"></div>
       </div>
       <div>
+        <span class="user-name" id="userName">Abdul Kareem P M</span>
         <span class="role-pill" id="rolePill">President</span>
         <button class="logout-btn" id="logoutBtn">Log out</button>
       </div>
@@ -488,7 +491,7 @@
           <div class="table-wrap">
             <table class="perm-table">
               <thead>
-                <tr><th>Capability</th><th>President</th><th>General Secretary</th><th>Treasurer</th><th>Working Secretary</th></tr>
+                <tr><th>Capability</th><th>President<br><small class="th-name">Abdul Kareem P M</small></th><th>General Secretary<br><small class="th-name">Shammas K</small></th><th>Treasurer<br><small class="th-name">Rafeeq O</small></th><th>Working Secretary<br><small class="th-name">Muhammad Ishak M</small></th></tr>
               </thead>
               <tbody>
                 <tr><td>View dashboard &amp; reports</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
@@ -556,11 +559,16 @@
 
 /* ---------- Users & permissions ---------- */
 const USERS = {
-  president: { username: 'president', password: 'president123', label: 'President',        short: 'Full access' },
-  gensec:    { username: 'gensec',    password: 'gensec123',    label: 'General Secretary', short: 'View + add entries' },
-  treasurer: { username: 'treasurer', password: 'treasurer123', label: 'Treasurer',        short: 'Finance control' },
-  worksec:   { username: 'worksec',   password: 'worksec123',   label: 'Working Secretary', short: 'View + add expenses' }
+  president: { username: 'president', password: 'president123', label: 'President',         name: 'Abdul Kareem P M',  short: 'Full access' },
+  gensec:    { username: 'gensec',    password: 'gensec123',    label: 'General Secretary', name: 'Shammas K',         short: 'View + add entries' },
+  treasurer: { username: 'treasurer', password: 'treasurer123', label: 'Treasurer',         name: 'Rafeeq O',          short: 'Finance control' },
+  worksec:   { username: 'worksec',   password: 'worksec123',   label: 'Working Secretary', name: 'Muhammad Ishak M',  short: 'View + add expenses' }
 };
+// "Name (Role)" display, e.g. "Rafeeq O (Treasurer)"
+function byLine(label) {
+  const u = Object.values(USERS).find(x => x.label === label);
+  return (u && u.name) ? u.name + ' (' + u.label + ')' : label;
+}
 
 const PERMS = {
   president: { addIncome: true,  addExpense: true,  edit: true,  del: true  },
@@ -698,11 +706,12 @@ function applyPermissions() {
   const p = PERMS[session];
   const u = USERS[session];
   document.getElementById('rolePill').textContent = u.label;
+  document.getElementById('userName').textContent = u.name;
   document.getElementById('chipUser').textContent = u.label;
   document.getElementById('chipRole').textContent = u.short;
   document.getElementById('avatarInitial').textContent = u.label.charAt(0);
-  document.getElementById('rolesWho').textContent = u.label;
-  document.getElementById('pwWho').textContent = u.label;
+  document.getElementById('rolesWho').textContent = u.name + ' (' + u.label + ')';
+  document.getElementById('pwWho').textContent = u.name + ' (' + u.label + ')';
 
   const bi = document.getElementById('btnAddIncome');
   const be = document.getElementById('btnAddExpense');
@@ -777,7 +786,7 @@ function txRow(t, showActions) {
       '</div>';
   }
   const lh = lastHistory(t);
-  const actionCell = '<td><div class="last-action">' + esc(lh.action) + ' by <strong>' + esc(lh.by) + '</strong></div>' +
+  const actionCell = '<td><div class="last-action">' + esc(lh.action) + ' by <strong>' + esc(byLine(lh.by)) + '</strong></div>' +
     '<div class="last-action-ts">' + esc(fmtDateTime(lh.ts)) + '</div></td>';
   return '<tr>' +
     '<td style="white-space:nowrap">' + esc(fmtDate(t.date)) + '</td>' +
@@ -785,7 +794,7 @@ function txRow(t, showActions) {
     (isPending(t) ? '<span class="badge pending">pending</span>' : '') + '</td>' +
     '<td>' + esc(t.category) + '</td>' +
     '<td>' + esc(t.desc) + '</td>' +
-    '<td>' + esc(t.by) + '</td>' +
+    '<td>' + esc(byLine(t.by)) + '</td>' +
     '<td style="text-align:right"><span class="amt ' + (t.type === 'income' ? 'in' : 'out') + '">' +
       (t.type === 'income' ? '+' : '−') + ' ' + esc(fmtINR(t.amount)) + '</span></td>' +
     actionCell +
@@ -880,7 +889,7 @@ function downloadPDF() {
   const trs = rows.map(t =>
     '<tr><td style="white-space:nowrap">' + esc(fmtDate(t.date)) + '</td>' +
     '<td>' + t.type + '</td><td>' + esc(t.category) + '</td>' +
-    '<td>' + esc(t.desc) + '</td><td>' + esc(t.by) + '</td>' +
+    '<td>' + esc(t.desc) + '</td><td>' + esc(byLine(t.by)) + '</td>' +
     '<td class="pr-amt">' + (t.type === 'income' ? '+' : '−') + ' ' + esc(fmtINR(t.amount)) + '</td></tr>'
   ).join('');
 
@@ -911,7 +920,7 @@ function approvalCard(t) {
   return '<div class="approval-card">' +
     '<div class="ac-main">' +
       '<div class="ac-title">' + esc(t.desc) + '</div>' +
-      '<div class="ac-meta">' + esc(t.category) + ' · ' + esc(fmtDate(t.date)) + ' · entered by ' + esc(t.by) + '</div>' +
+      '<div class="ac-meta">' + esc(t.category) + ' · ' + esc(fmtDate(t.date)) + ' · entered by ' + esc(byLine(t.by)) + '</div>' +
     '</div>' +
     '<div class="ac-amt ' + (t.type === 'income' ? 'in' : 'out') + '">' +
       (t.type === 'income' ? '+' : '−') + ' ' + esc(fmtINR(t.amount)) + '</div>' +
@@ -957,7 +966,7 @@ function renderAudit() {
   const body = document.getElementById('auditBody');
   body.innerHTML = rows.map(a =>
     '<tr><td style="white-space:nowrap">' + esc(fmtDateTime(a.ts)) + '</td>' +
-    '<td>' + esc(a.by) + '</td>' +
+    '<td>' + esc(byLine(a.by)) + '</td>' +
     '<td><span class="badge audit-' + esc(a.action) + '">' + esc(a.action) + '</span></td>' +
     '<td>' + esc(a.detail) + '</td></tr>'
   ).join('');
