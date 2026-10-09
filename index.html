@@ -136,7 +136,6 @@
     background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
     padding:20px 22px; border-top:4px solid var(--border); position:relative; overflow:hidden;
   }
-  .card.balance{border-top-color:var(--navy);}
   .card.income{border-top-color:var(--emerald);}
   .card.expense{border-top-color:var(--danger);}
   .card .label{font-size:12.5px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); font-weight:700; margin-bottom:8px;}
@@ -180,6 +179,7 @@
   .badge.audit-approve{background:#dcfce7; color:#15803d;}
   .badge.audit-reject{background:#fee2e2; color:#b91c1c;}
   .badge.audit-funds{background:#f3e8ff; color:#7e22ce;}
+  .badge.audit-password{background:#e0e7ff; color:#3730a3;}
   .count-badge{
     display:inline-flex; align-items:center; justify-content:center;
     min-width:20px; height:20px; padding:0 6px; border-radius:999px;
@@ -264,11 +264,6 @@
   .modal .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .modal-actions{display:flex; gap:10px; margin-top:18px;}
   .modal-actions .btn{flex:1;}
-  .funds-current{
-    background:#f8fafc; border:1.5px dashed var(--border); border-radius:10px;
-    padding:12px; text-align:center; margin-bottom:14px;
-  }
-  .funds-current .v{font-size:24px; font-weight:800; color:var(--navy);}
 
   /* ---------- Responsive ---------- */
   @media (max-width:860px){
@@ -302,7 +297,7 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v3 · Pallathur Unit edition</p>
+    <p class="version-tag">v4 · Pallathur Unit edition</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
@@ -336,6 +331,7 @@
       <button data-view="approvals" id="navApprovals"><span class="nav-ico">✅</span>Approvals<span class="count-badge hidden" id="approvalCount">0</span></button>
       <button data-view="roles" id="navRoles"><span class="nav-ico">👥</span>Roles &amp; Access</button>
       <button data-view="audit" id="navAudit"><span class="nav-ico">📋</span>Activity Log</button>
+      <button data-view="password"><span class="nav-ico">🔑</span>Change Password</button>
     </nav>
     <div class="side-foot">
       <div class="user-chip">
@@ -365,11 +361,6 @@
       <section id="view-dashboard">
         <div class="view-title">Overview</div>
         <div class="cards">
-          <div class="card balance">
-            <div class="label">💰 Cash in Hand / Available Balance</div>
-            <div class="amount" id="cardBalance">₹0</div>
-            <div class="sub">Manually maintained fund balance</div>
-          </div>
           <div class="card income">
             <div class="label">📈 Total Income</div>
             <div class="amount" id="cardIncome">₹0</div>
@@ -385,7 +376,6 @@
         <div class="actions">
           <button class="btn btn-navy" id="btnAddIncome">＋ Add Income</button>
           <button class="btn btn-navy" id="btnAddExpense">－ Add Expense</button>
-          <button class="btn btn-outline" id="btnUpdateFunds">💵 Update Funds</button>
         </div>
 
         <div class="panel">
@@ -461,6 +451,30 @@
         </div>
       </section>
 
+      <!-- ================= CHANGE PASSWORD ================= -->
+      <section id="view-password" class="hidden">
+        <div class="panel" style="max-width:480px;">
+          <div class="panel-head"><h3>Change Password</h3><span class="muted" id="pwWho"></span></div>
+          <div id="pwError" class="login-error hidden"></div>
+          <form id="pwForm" autocomplete="off">
+            <div class="field">
+              <label for="pwCurrent">Current password</label>
+              <input type="password" id="pwCurrent" placeholder="Enter current password" required>
+            </div>
+            <div class="field">
+              <label for="pwNew">New password</label>
+              <input type="password" id="pwNew" placeholder="Minimum 6 characters" required minlength="6">
+            </div>
+            <div class="field">
+              <label for="pwConfirm">Confirm new password</label>
+              <input type="password" id="pwConfirm" placeholder="Repeat new password" required minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary">Update Password</button>
+          </form>
+        </div>
+        <p class="note">Password changes are recorded in the Activity Log (without showing the password itself).</p>
+      </section>
+
       <section id="view-roles" class="hidden">
         <div class="view-title">Roles &amp; Access</div>
         <div class="panel">
@@ -476,7 +490,7 @@
                 <tr><td>Add expense entries</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
                 <tr><td>Edit entries</td><td class="yes">✓</td><td class="no">✕</td><td class="yes">✓</td><td class="no">✕</td></tr>
                 <tr><td>Delete entries</td><td class="yes">✓</td><td class="no">✕</td><td class="yes">✓</td><td class="no">✕</td></tr>
-                <tr><td>Update fund balance</td><td class="yes">✓</td><td class="no">✕</td><td class="yes">✓</td><td class="no">✕</td></tr>
+                <tr><td>Change own password</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
                 <tr><td>Approve entries</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
               </tbody>
             </table>
@@ -530,28 +544,6 @@
   </div>
 </div>
 
-<!-- ================= FUNDS MODAL ================= -->
-<div id="fundsModal" class="modal-overlay hidden">
-  <div class="modal">
-    <h3>Update Funds</h3>
-    <p class="modal-sub">Set the current cash-in-hand balance manually.</p>
-    <div class="funds-current">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">CURRENT BALANCE</div>
-      <div class="v" id="fundsCurrent">₹0</div>
-    </div>
-    <form id="fundsForm">
-      <div class="field">
-        <label for="fundsAmount">New Balance (₹)</label>
-        <input type="number" id="fundsAmount" min="0" step="1" placeholder="e.g. 150000" required>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-outline" id="fundsCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary">Update Balance</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script>
 /* ==================== Pallathur Unit Tool Kit — app logic ==================== */
 'use strict';
@@ -565,10 +557,10 @@ const USERS = {
 };
 
 const PERMS = {
-  president: { addIncome: true,  addExpense: true,  edit: true,  del: true,  funds: true  },
-  gensec:    { addIncome: true,  addExpense: true,  edit: false, del: false, funds: false },
-  treasurer: { addIncome: true,  addExpense: true,  edit: true,  del: true,  funds: true  },
-  worksec:   { addIncome: false, addExpense: true,  edit: false, del: false, funds: false }
+  president: { addIncome: true,  addExpense: true,  edit: true,  del: true  },
+  gensec:    { addIncome: true,  addExpense: true,  edit: false, del: false },
+  treasurer: { addIncome: true,  addExpense: true,  edit: true,  del: true  },
+  worksec:   { addIncome: false, addExpense: true,  edit: false, del: false }
 };
 
 const CATS = {
@@ -585,7 +577,7 @@ const HAS_STORAGE = (() => {
 })();
 
 function seedData() {
-  return { balance: 0, transactions: [], audit: [] };
+  return { transactions: [], audit: [] };
 }
 
 function loadData() {
@@ -609,6 +601,10 @@ function saveData(d) {
 let DB = loadData();
 DB.transactions.forEach(t => { if (!t.status) t.status = 'approved'; }); // migrate older saves
 if (!Array.isArray(DB.audit)) DB.audit = []; // audit trail
+if (!DB.passwords || typeof DB.passwords !== 'object') DB.passwords = {}; // per-role password overrides
+function userPassword(key) {
+  return (DB.passwords && DB.passwords[key]) || USERS[key].password;
+}
 let session = null; // role key, e.g. 'president'
 try { session = sessionStorage.getItem('pallathurUnitUser'); } catch (e) {}
 
@@ -652,7 +648,7 @@ loginForm.addEventListener('submit', e => {
   e.preventDefault();
   const key = roleSelect.value;
   const u = USERS[key];
-  if (u && passwordInput.value === u.password) {
+  if (u && passwordInput.value === userPassword(key)) {
     loginAs(key);
   } else {
     loginError.textContent = 'Incorrect password for ' + USERS[key].label + '.';
@@ -670,13 +666,13 @@ function enterApp() {
 }
 
 /* ---------- Navigation ---------- */
-const pageTitles = { dashboard: 'Dashboard', transactions: 'Transactions', approvals: 'Approvals', roles: 'Roles & Access', audit: 'Activity Log' };
+const pageTitles = { dashboard: 'Dashboard', transactions: 'Transactions', approvals: 'Approvals', roles: 'Roles & Access', audit: 'Activity Log', password: 'Change Password' };
 document.querySelectorAll('.nav button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const v = btn.dataset.view;
-    ['dashboard', 'transactions', 'approvals', 'roles', 'audit'].forEach(x =>
+    ['dashboard', 'transactions', 'approvals', 'roles', 'audit', 'password'].forEach(x =>
       document.getElementById('view-' + x).classList.toggle('hidden', x !== v));
     document.getElementById('pageTitle').textContent = pageTitles[v];
   });
@@ -700,13 +696,12 @@ function applyPermissions() {
   document.getElementById('chipRole').textContent = u.short;
   document.getElementById('avatarInitial').textContent = u.label.charAt(0);
   document.getElementById('rolesWho').textContent = u.label;
+  document.getElementById('pwWho').textContent = u.label;
 
   const bi = document.getElementById('btnAddIncome');
   const be = document.getElementById('btnAddExpense');
-  const bf = document.getElementById('btnUpdateFunds');
   bi.style.display = p.addIncome ? '' : 'none';
   be.style.display = p.addExpense ? '' : 'none';
-  bf.style.display = p.funds ? '' : 'none';
   bi.disabled = !p.addIncome;
   be.disabled = !p.addExpense;
   document.getElementById('navApprovals').style.display = session === 'president' ? '' : 'none';
@@ -817,7 +812,6 @@ function sortedTx() {
 
 function renderDashboard() {
   const t = totals();
-  document.getElementById('cardBalance').textContent = fmtINR(DB.balance);
   document.getElementById('cardIncome').textContent = fmtINR(t.inc);
   document.getElementById('cardExpense').textContent = fmtINR(t.exp);
   document.getElementById('incomeCount').textContent = t.nInc + ' income entries recorded';
@@ -1069,31 +1063,28 @@ txForm.addEventListener('submit', e => {
   if (session !== 'president') toast('Submitted for President\u2019s approval.');
 });
 
-/* ---------- Funds modal ---------- */
-const fundsModal = document.getElementById('fundsModal');
-document.getElementById('btnUpdateFunds').addEventListener('click', () => {
-  if (!PERMS[session].funds) return;
-  document.getElementById('fundsCurrent').textContent = fmtINR(DB.balance);
-  document.getElementById('fundsAmount').value = DB.balance;
-  fundsModal.classList.remove('hidden');
-  document.getElementById('fundsAmount').focus();
-});
-document.getElementById('fundsCancel').addEventListener('click', () => fundsModal.classList.add('hidden'));
-fundsModal.addEventListener('click', e => { if (e.target === fundsModal) fundsModal.classList.add('hidden'); });
-document.getElementById('fundsForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const v = Math.round(+document.getElementById('fundsAmount').value);
-  if (isNaN(v) || v < 0) return;
-  const oldBal = DB.balance;
-  DB.balance = v;
-  logAudit('funds', 'Updated funds: ' + fmtINR(oldBal) + ' → ' + fmtINR(v));
-  saveData(DB);
-  fundsModal.classList.add('hidden');
-  renderAll();
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeTxModal(); }
 });
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeTxModal(); fundsModal.classList.add('hidden'); }
+/* ---------- Change password ---------- */
+document.getElementById('pwForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const err = document.getElementById('pwError');
+  const cur = document.getElementById('pwCurrent').value;
+  const nw = document.getElementById('pwNew').value;
+  const cf = document.getElementById('pwConfirm').value;
+  const fail = msg => { err.textContent = msg; err.classList.remove('hidden'); };
+  err.classList.add('hidden');
+  if (cur !== userPassword(session)) return fail('Current password is incorrect.');
+  if (nw.length < 6) return fail('New password must be at least 6 characters.');
+  if (nw !== cf) return fail('New passwords do not match.');
+  if (nw === cur) return fail('New password must be different from the current one.');
+  DB.passwords[session] = nw;
+  logAudit('password', USERS[session].label + ' changed their login password');
+  saveData(DB);
+  document.getElementById('pwForm').reset();
+  toast('Password updated. Use it next time you log in.');
 });
 
 /* ---------- Boot ---------- */
