@@ -300,7 +300,7 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v7 · Pallathur Unit edition</p>
+    <p class="version-tag">v8 · Pallathur Unit edition</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
@@ -583,7 +583,9 @@ const CATS = {
 };
 
 /* ---------- Storage (works even where browser storage is blocked) ---------- */
-const LS_KEY = 'pallathurUnitToolkitV1';
+const LS_KEY = 'pallathurUnitToolkitV2';
+// One-time cleanup: drop the old v1 slot (it only ever held v1 demo seed data)
+try { localStorage.removeItem('pallathurUnitToolkitV1'); } catch (e) {}
 let memStore = null;
 const HAS_STORAGE = (() => {
   try { localStorage.setItem('__zt_test', '1'); localStorage.removeItem('__zt_test'); return true; }
