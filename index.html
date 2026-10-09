@@ -138,6 +138,7 @@
   }
   .card.income{border-top-color:var(--emerald);}
   .card.expense{border-top-color:var(--danger);}
+  .card.balance{border-top-color:var(--navy);}
   .card .label{font-size:12.5px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); font-weight:700; margin-bottom:8px;}
   .card .amount{font-size:29px; font-weight:800; color:var(--navy); letter-spacing:-.5px;}
   .card.income .amount{color:var(--income);}
@@ -297,7 +298,7 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v4 · Pallathur Unit edition</p>
+    <p class="version-tag">v5 · Pallathur Unit edition</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
@@ -361,6 +362,11 @@
       <section id="view-dashboard">
         <div class="view-title">Overview</div>
         <div class="cards">
+          <div class="card balance">
+            <div class="label">💰 Current Available Balance</div>
+            <div class="amount" id="cardBalance">₹0</div>
+            <div class="sub">Income minus expenses (auto-calculated)</div>
+          </div>
           <div class="card income">
             <div class="label">📈 Total Income</div>
             <div class="amount" id="cardIncome">₹0</div>
@@ -812,6 +818,7 @@ function sortedTx() {
 
 function renderDashboard() {
   const t = totals();
+  document.getElementById('cardBalance').textContent = fmtINR(t.inc - t.exp);
   document.getElementById('cardIncome').textContent = fmtINR(t.inc);
   document.getElementById('cardExpense').textContent = fmtINR(t.exp);
   document.getElementById('incomeCount').textContent = t.nInc + ' income entries recorded';
