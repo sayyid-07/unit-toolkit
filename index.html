@@ -308,7 +308,7 @@
       <h1>Pallathur Unit Tool Kit</h1>
     </div>
     <p class="login-sub">Financial Dashboard · Pallathur Unit</p>
-    <p class="version-tag">v11 · Pallathur Unit edition</p>
+    <p class="version-tag">v12 · Pallathur Unit edition · shared database</p>
     <div id="loginError" class="login-error hidden"></div>
     <form id="loginForm" autocomplete="off">
       <div class="field">
@@ -590,44 +590,91 @@ const CATS = {
   expense: ['Refreshments', 'Printing', 'Travel', 'Event Costs', 'Other']
 };
 
-/* ---------- Storage (works even where browser storage is blocked) ---------- */
-const LS_KEY = 'pallathurUnitToolkitV2';
-// NOTE: never delete or wipe stored data on boot — updates must preserve user entries.
-let memStore = null;
-const HAS_STORAGE = (() => {
-  try { localStorage.setItem('__zt_test', '1'); localStorage.removeItem('__zt_test'); return true; }
-  catch (e) { return false; }
-})();
+/* ---------- Backend API (shared database — all devices see the same data) ---------- */
+const API_BASE = location.hostname.endsWith('pythonanywhere.com')
+  ? '/api/pallathur'
+  : 'https://2968.pythonanywhere.com/api/pallathur';
+const TOKEN_KEY = 'pallathurUnitToken';
+let apiToken = null;
+try { apiToken = sessionStorage.getItem(TOKEN_KEY); } catch (e) {}
+let apiUser = null; // {role, label, name} from the server on login
 
-function seedData() {
-  return { transactions: [], audit: [] };
-}
-
-function loadData() {
-  if (HAS_STORAGE) {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && Array.isArray(d.transactions)) return d; }
-    } catch (e) { /* corrupted -> reseed */ }
-  } else if (memStore) {
-    return memStore;
+async function api(path, method, body, opts) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+  const quiet = opts && opts.quiet;
+  const fail = msg => { if (!quiet) toast(msg); throw new Error(msg); };
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method: method || 'GET',
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    if (!quiet) toast('Could not reach the server. Check your internet connection.');
+    throw new Error('network');
   }
-  const d = seedData();
-  saveData(d);
-  return d;
-}
-function saveData(d) {
-  if (HAS_STORAGE) { try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch (e) {} }
-  else { memStore = d; }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* non-JSON */ }
+  if (res.status === 401) {
+    if (path === '/login') {
+      throw new Error((data && data.error) || 'Incorrect password.');
+    }
+    // token expired/invalid -> back to login
+    apiToken = null; apiUser = null; session = null;
+    try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    try { sessionStorage.removeItem('pallathurUnitUser'); } catch (e) {}
+    appView.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    toast('Session expired. Please log in again.');
+    throw new Error('unauthorized');
+  }
+  if (!res.ok || (data && data.ok === false)) {
+    if (!quiet) toast((data && data.error) || 'Something went wrong. Please try again.');
+    throw new Error((data && data.error) || 'api error');
+  }
+  return data;
 }
 
-let DB = loadData();
-DB.transactions.forEach(t => { if (!t.status) t.status = 'approved'; }); // migrate older saves
-if (!Array.isArray(DB.audit)) DB.audit = []; // audit trail
-if (!DB.passwords || typeof DB.passwords !== 'object') DB.passwords = {}; // per-role password overrides
-function userPassword(key) {
-  return (DB.passwords && DB.passwords[key]) || USERS[key].password;
+/* In-memory copy of the server state, refreshed after every change */
+let DB = { transactions: [], audit: [] };
+
+async function refreshData() {
+  const t = await api('/transactions', 'GET');
+  DB.transactions = t.transactions || [];
+  if (session === 'president') {
+    try {
+      const a = await api('/audit', 'GET');
+      DB.audit = a.audit || [];
+    } catch (e) { DB.audit = []; }
+  }
+  renderAll();
 }
+
+/* One-time: move entries saved in this browser (v8–v11 era) to the shared database */
+async function migrateLocalData() {
+  let local = null;
+  try {
+    const raw = localStorage.getItem('pallathurUnitToolkitV2');
+    if (raw) { const d = JSON.parse(raw); if (d && Array.isArray(d.transactions)) local = d; }
+  } catch (e) {}
+  if (!local || !local.transactions.length) return;
+  const server = await api('/transactions', 'GET');
+  if ((server.transactions || []).length > 0) return; // someone already migrated
+  let n = 0;
+  for (const t of local.transactions) {
+    try {
+      await api('/transactions', 'POST', {
+        type: t.type, category: t.category, amount: t.amount, date: t.date, desc: t.desc || ''
+      });
+      n++;
+    } catch (e) { /* keep going */ }
+  }
+  try { localStorage.removeItem('pallathurUnitToolkitV2'); } catch (e) {}
+  if (n) toast('Moved ' + n + ' saved entr' + (n === 1 ? 'y' : 'ies') + ' to the shared database.');
+}
+
 let session = null; // role key, e.g. 'president'
 try { session = sessionStorage.getItem('pallathurUnitUser'); } catch (e) {}
 
@@ -657,35 +704,52 @@ const roleSelect = document.getElementById('roleSelect');
 const passwordInput = document.getElementById('passwordInput');
 const loginError = document.getElementById('loginError');
 
-function loginAs(key) {
+async function loginAs(key, token, name, label) {
   const u = USERS[key];
   if (!u) return;
   session = key;
-  try { sessionStorage.setItem('pallathurUnitUser', key); } catch (err) {}
+  apiToken = token;
+  apiUser = { role: key, name: name || u.name, label: label || u.label };
+  try {
+    sessionStorage.setItem('pallathurUnitUser', key);
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch (err) {}
   passwordInput.value = '';
   loginError.classList.add('hidden');
+  await migrateLocalData();
   enterApp();
 }
 
-loginForm.addEventListener('submit', e => {
+loginForm.addEventListener('submit', async e => {
   e.preventDefault();
   const key = roleSelect.value;
   const u = USERS[key];
-  if (u && passwordInput.value === userPassword(key)) {
-    loginAs(key);
-  } else {
-    loginError.textContent = 'Incorrect password for ' + USERS[key].label + '.';
-    loginError.classList.remove('hidden');
+  if (!u) return;
+  loginError.classList.add('hidden');
+  const btn = loginForm.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    const data = await api('/login', 'POST', { role: key, password: passwordInput.value });
+    await loginAs(key, data.token, data.name, data.label);
+  } catch (err) {
+    if (err.message !== 'network') {
+      loginError.textContent = err.message || ('Incorrect password for ' + u.label + '.');
+      loginError.classList.remove('hidden');
+    }
+  } finally {
+    btn.disabled = false;
   }
 });
 
-function enterApp() {
+async function enterApp() {
   loginView.classList.add('hidden');
   appView.classList.remove('hidden');
   applyPermissions();
   // always land on dashboard; a previous President session might have left Approvals open
   document.querySelector('.nav button[data-view="dashboard"]').click();
-  renderAll();
+  try {
+    await refreshData();
+  } catch (e) { /* api() already toasted */ }
 }
 
 /* ---------- Navigation ---------- */
@@ -704,8 +768,9 @@ document.getElementById('viewAllBtn').addEventListener('click', () => {
   document.querySelector('.nav button[data-view="transactions"]').click();
 });
 document.getElementById('logoutBtn').addEventListener('click', () => {
-  session = null;
+  session = null; apiToken = null; apiUser = null;
   try { sessionStorage.removeItem('pallathurUnitUser'); } catch (e) {}
+  try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
   appView.classList.add('hidden');
   loginView.classList.remove('hidden');
 });
@@ -740,20 +805,7 @@ function applyPermissions() {
 function isPending(t) { return (t.status || 'approved') === 'pending'; }
 function pendingTx() { return sortedTx().filter(isPending); }
 
-/* ---------- Audit trail ---------- */
-function logAudit(action, detail) {
-  DB.audit.unshift({
-    ts: new Date().toISOString(),
-    by: USERS[session] ? USERS[session].label : 'System',
-    action: action,
-    detail: detail
-  });
-  if (DB.audit.length > 300) DB.audit.length = 300; // cap the log
-}
-function pushHistory(t, action) {
-  if (!Array.isArray(t.history)) t.history = [];
-  t.history.push({ ts: new Date().toISOString(), by: USERS[session] ? USERS[session].label : 'System', action: action });
-}
+/* ---------- Audit trail (recorded by the server on every change) ---------- */
 function lastHistory(t) {
   if (Array.isArray(t.history) && t.history.length) return t.history[t.history.length - 1];
   return { ts: (t.date || '') + 'T12:00:00', by: t.by || '—', action: 'added' };
@@ -813,14 +865,15 @@ function txRow(t, showActions) {
 
 function bindRowActions(tbody) {
   tbody.querySelectorAll('[data-del]').forEach(b => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const id = +b.dataset.del;
       const t = DB.transactions.find(x => x.id === id);
       if (t && confirm('Delete this ' + t.type + ' entry of ' + fmtINR(t.amount) + '?\n"' + t.desc + '"')) {
-        logAudit('delete', 'Deleted ' + t.type + ' ' + fmtINR(t.amount) + ' — "' + t.desc + '" (entered by ' + t.by + ')');
-        DB.transactions = DB.transactions.filter(x => x.id !== id);
-        saveData(DB);
-        renderAll();
+        try {
+          await api('/transactions/' + id, 'DELETE');
+          await refreshData();
+          toast('Entry deleted.');
+        } catch (e) { /* api() already toasted */ }
       }
     });
   });
@@ -950,22 +1003,25 @@ function renderApprovals() {
   list.innerHTML = pend.length
     ? pend.map(approvalCard).join('')
     : '<div class="empty">All caught up — no entries waiting for approval.</div>';
-  list.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => {
-    const t = DB.transactions.find(x => x.id === +b.dataset.approve);
-    if (t) {
-      t.status = 'approved';
-      pushHistory(t, 'approved');
-      logAudit('approve', 'Approved ' + t.type + ' ' + fmtINR(t.amount) + ' — "' + t.desc + '" (entered by ' + t.by + ')');
-      saveData(DB); renderAll(); toast('Entry approved.');
-    }
+  list.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', async () => {
+    const id = +b.dataset.approve;
+    b.disabled = true;
+    try {
+      await api('/transactions/' + id + '/approve', 'POST');
+      await refreshData();
+      toast('Entry approved.');
+    } catch (e) { b.disabled = false; /* api() already toasted */ }
   }));
-  list.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', () => {
+  list.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', async () => {
     const id = +b.dataset.reject;
     const t = DB.transactions.find(x => x.id === id);
     if (t && confirm('Reject and remove this entry?\n' + fmtINR(t.amount) + ' — "' + t.desc + '"')) {
-      logAudit('reject', 'Rejected ' + t.type + ' ' + fmtINR(t.amount) + ' — "' + t.desc + '" (entered by ' + t.by + ')');
-      DB.transactions = DB.transactions.filter(x => x.id !== id);
-      saveData(DB); renderAll(); toast('Entry rejected and removed.');
+      b.disabled = true;
+      try {
+        await api('/transactions/' + id + '/reject', 'POST');
+        await refreshData();
+        toast('Entry rejected and removed.');
+      } catch (e) { b.disabled = false; /* api() already toasted */ }
     }
   }));
 }
@@ -1047,7 +1103,7 @@ document.getElementById('btnAddExpense').addEventListener('click', () => {
 document.getElementById('txCancel').addEventListener('click', closeTxModal);
 txModal.addEventListener('click', e => { if (e.target === txModal) closeTxModal(); });
 
-txForm.addEventListener('submit', e => {
+txForm.addEventListener('submit', async e => {
   e.preventDefault();
   const txError = document.getElementById('txError');
   const amount = Math.round(+document.getElementById('txAmount').value);
@@ -1063,29 +1119,19 @@ txForm.addEventListener('submit', e => {
   }
   txError.classList.add('hidden');
 
-  if (editId) {
-    const t = DB.transactions.find(x => x.id === +editId);
-    if (t) {
-      const oldAmt = t.amount;
-      t.amount = amount; t.date = date; t.category = category; t.desc = desc;
-      t.status = (session === 'president') ? 'approved' : 'pending'; // edits need re-approval
-      pushHistory(t, 'edited');
-      logAudit('edit', 'Edited ' + t.type + ' #' + t.id + ': ' + fmtINR(oldAmt) + ' → ' + fmtINR(amount) + ' — "' + desc + '"' +
-        (t.status === 'pending' ? ' (sent for approval)' : ''));
+  const saveBtn = txForm.querySelector('button[type="submit"]');
+  saveBtn.disabled = true;
+  try {
+    if (editId) {
+      await api('/transactions/' + editId, 'PUT', { category, amount, date, desc });
+    } else {
+      await api('/transactions', 'POST', { type, category, amount, date, desc });
     }
-  } else {
-    const nextId = DB.transactions.reduce((m, x) => Math.max(m, x.id), 0) + 1;
-    const st = (session === 'president') ? 'approved' : 'pending';
-    const nt = { id: nextId, type, category, amount, date, desc, by: USERS[session].label, status: st, history: [] };
-    pushHistory(nt, 'added');
-    DB.transactions.push(nt);
-    logAudit('add', 'Added ' + type + ' ' + fmtINR(amount) + ' — "' + desc + '"' +
-      (st === 'pending' ? ' (sent for approval)' : ''));
-  }
-  saveData(DB);
-  closeTxModal();
-  renderAll();
-  if (session !== 'president') toast('Submitted for President\u2019s approval.');
+    closeTxModal();
+    await refreshData();
+    if (session !== 'president') toast('Submitted for President\u2019s approval.');
+  } catch (err) { /* api() already toasted */ }
+  saveBtn.disabled = false;
 });
 
 document.addEventListener('keydown', e => {
@@ -1093,7 +1139,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- Change password ---------- */
-document.getElementById('pwForm').addEventListener('submit', e => {
+document.getElementById('pwForm').addEventListener('submit', async e => {
   e.preventDefault();
   const err = document.getElementById('pwError');
   const cur = document.getElementById('pwCurrent').value;
@@ -1101,19 +1147,39 @@ document.getElementById('pwForm').addEventListener('submit', e => {
   const cf = document.getElementById('pwConfirm').value;
   const fail = msg => { err.textContent = msg; err.classList.remove('hidden'); };
   err.classList.add('hidden');
-  if (cur !== userPassword(session)) return fail('Current password is incorrect.');
   if (nw.length < 6) return fail('New password must be at least 6 characters.');
   if (nw !== cf) return fail('New passwords do not match.');
   if (nw === cur) return fail('New password must be different from the current one.');
-  DB.passwords[session] = nw;
-  logAudit('password', USERS[session].label + ' changed their login password');
-  saveData(DB);
-  document.getElementById('pwForm').reset();
-  toast('Password updated. Use it next time you log in.');
+  const saveBtn = document.querySelector('#pwForm button[type="submit"]');
+  saveBtn.disabled = true;
+  try {
+    const data = await api('/change-password', 'POST', { current_password: cur, new_password: nw }, { quiet: true });
+    if (data.token) {
+      apiToken = data.token;
+      try { sessionStorage.setItem(TOKEN_KEY, data.token); } catch (e2) {}
+    }
+    document.getElementById('pwForm').reset();
+    toast('Password updated. Use it next time you log in.');
+  } catch (e2) {
+    if (e2.message === 'network') return fail('Could not reach the server. Check your internet connection.');
+    if (e2.message === 'unauthorized') return; // session expired flow already shown
+    return fail(e2.message || 'Could not change password.');
+  }
+  saveBtn.disabled = false;
 });
 
 /* ---------- Boot ---------- */
-if (session && USERS[session]) { enterApp(); }
+if (session && USERS[session] && apiToken) {
+  // validate the saved token with the server before showing the app
+  api('/transactions', 'GET')
+    .then(() => enterApp())
+    .catch(() => { /* api() handles the expired-session case */ });
+} else if (session || apiToken) {
+  // half-saved session: start clean at the login screen
+  session = null; apiToken = null; apiUser = null;
+  try { sessionStorage.removeItem('pallathurUnitUser'); } catch (e) {}
+  try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+}
 </script>
 <div class="toast" id="toast"></div>
 <div id="printReport"></div>
